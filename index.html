@@ -216,9 +216,11 @@ function home(){
   document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{S.easy=b.dataset.e==='1';document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));});
 }
 
+// ⭐ = beim ersten Versuch richtig, ✔️ = mit mehreren Versuchen geschafft, 💡 = Lösung angesehen
+const SYM=r=>r===true?'⭐':r==='shown'?'💡':'✔️';
 function topBar(){
   const n=S.part===1?N1:N2, res=S.part===1?S.results1:S.results2;
-  let dots='';for(let i=0;i<n;i++)dots+=`<div class="dot ${i===S.idx?'cur':''} ${res[i]!==undefined?'done':''}">${res[i]===true?'⭐':res[i]===false?'✔️':''}</div>`;
+  let dots='';for(let i=0;i<n;i++)dots+=`<div class="dot ${i===S.idx?'cur':''} ${res[i]!==undefined?'done':''}">${res[i]===undefined?'':SYM(res[i])}</div>`;
   return `<div class="top"><button class="btn light small" id="homeBtn">🏠 Start</button>
     <b style="font-size:1.25rem">Teil ${S.part}: Aufgabe ${S.idx+1} von ${n}</b></div><div class="dots" style="margin-top:8px">${dots}</div>`;
 }
@@ -235,18 +237,18 @@ function next(){
 }
 function interlude(){
   $('#app').innerHTML=`<div class="end"><h1>Teil 1 geschafft! 🎉</h1>
-   <div class="stars">${S.results1.map(r=>r?'⭐':'✔️').join('')}</div>
+   <div class="stars">${S.results1.map(SYM).join('')}</div>
    ${say('Jetzt wird es kniffliger: Du bekommst nur eine Hälfte und malst die andere Hälfte dazu!')}
    <button class="btn green" id="go">Weiter zu Teil 2 ➜</button></div>`;
   confetti();$('#go').onclick=startTask;
 }
 function finish(){
-  const all=[...S.results1,...S.results2], st=all.filter(x=>x).length;
+  const all=[...S.results1,...S.results2], st=all.filter(x=>x===true).length;
   $('#app').innerHTML=`<div class="end"><h1>Geschafft! 🏆</h1>
-   <div class="stars">${all.map(r=>r?'⭐':'✔️').join('')}</div>
+   <div class="stars">${all.map(SYM).join('')}</div>
    ${say(`Du hast <b>${st}</b> von ${all.length} Aufgaben gleich beim ersten Versuch gelöst. ${st>=all.length*0.8?'Du bist ein echter Spiegel-Profi!':'Übung macht den Meister – probier es gleich nochmal!'}`)}
    <div class="controls"><button class="btn green" id="again">🔄 Neue Aufgaben</button><button class="btn light" id="h">🏠 Startseite</button></div>
-   <p class="hint">⭐ = beim ersten Versuch richtig &nbsp; ✔️ = mit mehreren Versuchen geschafft</p></div>`;
+   <p class="hint">⭐ = beim ersten Versuch richtig &nbsp; ✔️ = mit mehreren Versuchen geschafft &nbsp; 💡 = Lösung angesehen</p></div>`;
   confetti();
   $('#again').onclick=()=>{newSet();S.idx=0;S.part=S.mode==='2'?2:1;startTask();};
   $('#h').onclick=home;
@@ -280,9 +282,11 @@ function part1(){
   bindHome(); drawAxis();
   const svg=$('#board'); let drag=false;
   const move=e=>{if(t.done)return;const p=svgPoint(svg,e);let v=Math.round((vert?p.x:p.y)/U);v=Math.max(1,Math.min(max,v));if(v!==t.pos){t.pos=v;t.ghost=false;$('#msg').textContent='';drawAxis();}};
-  svg.addEventListener('pointerdown',e=>{drag=true;try{svg.setPointerCapture(e.pointerId)}catch(_){}move(e);});
-  svg.addEventListener('pointermove',e=>{if(drag)move(e);});
-  svg.addEventListener('pointerup',()=>drag=false);svg.addEventListener('pointercancel',()=>drag=false);
+  svg.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();drag=true;try{svg.setPointerCapture(e.pointerId)}catch(_){}move(e);});
+  // Bewegung und Loslassen am ganzen Fenster verfolgen: Die Linie folgt dem Finger auch außerhalb
+  // des Bretts und bleibt nach dem Loslassen nicht am Mauszeiger „kleben“.
+  window.onpointermove=e=>{if(drag)move(e);};
+  window.onpointerup=window.onpointercancel=()=>{drag=false;};
   const step=d=>{if(t.done)return;t.pos=Math.max(1,Math.min(max,t.pos+d));t.ghost=false;$('#msg').textContent='';drawAxis();};
   $('#m1').onclick=()=>step(-1);$('#p1').onclick=()=>step(1);
   $('#tip').onclick=()=>{t.ghost=!t.ghost;drawAxis();$('#msg').className='msg';$('#msg').textContent=t.ghost?'So sieht die Figur gespiegelt an deiner Linie aus.':'';};
@@ -361,7 +365,8 @@ function part2(){
     $('#marks').innerHTML='';$('#msg').textContent='';apply(el);
   });
   svg.addEventListener('pointermove',e=>{if(!t.painting||t.done)return;const el=cellAt(e);if(el)apply(el);});
-  window.onpointerup=()=>{t.painting=null;};
+  window.onpointermove=null;
+  window.onpointerup=window.onpointercancel=()=>{t.painting=null;};
   $('#clr').onclick=()=>{if(t.done)return;t.user=f.g.map(r=>r.map(()=>'.'));drawBoard2();$('#msg').textContent='';};
   $('#check').onclick=checkP2;
 }
@@ -411,7 +416,7 @@ function checkP2(){
   const b=$('#board');b.classList.remove('shake');void b.offsetWidth;b.classList.add('shake');
   if(t.tries>=2&&!$('#sol')){
     const btn=document.createElement('button');btn.className='btn orange';btn.id='sol';btn.textContent='💡 Lösung zeigen';
-    btn.onclick=()=>{t.done=true;S.results2[S.idx]=false;t.user=f.g.map(r=>r.slice());drawBoard2();$('#pal').innerHTML='';
+    btn.onclick=()=>{t.done=true;S.results2[S.idx]='shown';t.user=f.g.map(r=>r.slice());drawBoard2();$('#pal').innerHTML='';
       m.className='msg';m.textContent='So sieht die fertige Figur aus. Vergleiche die beiden Hälften!';
       $('#ctrl').innerHTML=`<button class="btn green" id="nx">Weiter ➜</button>`;$('#nx').onclick=next;};
     $('#ctrl').prepend(btn);
